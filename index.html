@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrendPulse — DPO Keyword Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  input:focus, select:focus { border-color: #6366f1 !important; outline: none; }
+  button { cursor: pointer; border: none; background: none; }
+  button:hover { opacity: 0.85; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #f8fafc;
+    color: #1e293b;
+    min-height: 100vh;
+  }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .header {
+    background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 20px 28px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #fff;
+    box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+  }
+  .logo-text { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+  .logo-sub { font-size: 11px; color: #94a3b8; font-family: 'Space Mono', monospace; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #16a34a;
+    animation: pulse 1.5s ease infinite;
+  }
+  .status-dot.offline { background: #94a3b8; animation: none; }
+  .status-text { font-size: 12px; color: #16a34a; font-family: 'Space Mono', monospace; }
+  .status-text.offline { color: #94a3b8; }
+
+  .refresh-btn {
+    padding: 10px 20px; border-radius: 8px; font-family: 'Space Mono', monospace;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.5px; color: #fff;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+    transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+  }
+  .refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .refresh-btn .spinner { display: none; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  .refresh-btn.loading .spinner { display: inline-block; }
+  .refresh-btn.loading .btn-text { display: none; }
+
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
+  .tab {
+    padding: 14px 24px; color: #94a3b8; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 400; border-bottom: 2px solid transparent; transition: all 0.2s;
+  }
+  .tab.active { color: #1e293b; font-weight: 600; border-bottom-color: #6366f1; }
+
+  .filter-bar {
+    display: flex; align-items: center; gap: 12px; padding: 10px 28px;
+    background: #ffffff; border-bottom: 1px solid #e2e8f0;
+  }
+  .filter-label {
+    font-family: 'Space Mono', monospace; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; color: #94a3b8; white-space: nowrap; min-width: 90px;
+  }
+  .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+  .pill {
+    padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    border: 1px solid #e2e8f0; background: transparent; color: #64748b;
+    font-family: 'DM Sans', sans-serif; transition: all 0.2s; white-space: nowrap; cursor: pointer;
+  }
+  .pill.active { border-color: #6366f1; background: rgba(99,102,241,0.08); color: #4f46e5; }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 0; min-height: calc(100vh - 180px); }
+  .grid.with-sidebar { grid-template-columns: 1fr 1fr; }
+  .main { padding: 24px 28px; overflow-y: auto; max-height: calc(100vh - 180px); }
+  .sidebar {
+    border-left: 1px solid #e2e8f0; padding: 24px 28px;
+    background: #ffffff; overflow-y: auto; max-height: calc(100vh - 180px);
+  }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .stat-value { font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  .stat-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+
+  .section-title {
+    font-family: 'Space Mono', monospace; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 14px;
+  }
+
+  .card {
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+  .card.selected { border-color: #6366f1; background: #f5f3ff; }
+  .card.alert-border { border-color: rgba(220,38,38,0.4); }
+  .card-row { display: flex; justify-content: space-between; align-items: center; }
+  .card-left { display: flex; align-items: center; gap: 12px; flex: 1; }
+  .card-right { display: flex; align-items: center; gap: 16px; }
+
+  .kw-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; color: #1e293b; }
+  .kw-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .kw-threshold { font-size: 11px; color: #94a3b8; font-family: 'Space Mono', monospace; }
+  .kw-value { font-family: 'Space Mono', monospace; font-size: 18px; font-weight: 700; text-align: right; min-width: 60px; }
+
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; font-family: 'Space Mono', monospace;
+  }
+
+  .input, .select-input {
+    padding: 10px 14px; border-radius: 8px; background: #f8fafc;
+    border: 1px solid #e2e8f0; color: #1e293b; font-family: 'DM Sans', sans-serif; font-size: 14px;
+  }
+  .add-btn {
+    padding: 10px 18px; border-radius: 8px; background: #6366f1; color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+  }
+  .add-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  .remove-btn { background: none; border: none; color: #cbd5e1; font-size: 18px; padding: 0 4px; }
+  .remove-btn:hover { color: #ef4444; }
+
+  .alert-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; border-radius: 10px; animation: fadeIn 0.3s ease; margin-bottom: 8px;
+  }
+  .alert-item.high { background: rgba(220,38,38,0.06); border: 1px solid rgba(220,38,38,0.2); }
+  .alert-item.medium { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); }
+  .alert-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .alert-dot.high { background: #dc2626; box-shadow: 0 0 8px rgba(220,38,38,0.4); }
+  .alert-dot.medium { background: #f59e0b; }
+  .alert-body { flex: 1; min-width: 0; }
+  .alert-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .alert-keyword { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; }
+  .alert-time { font-size: 11px; color: #94a3b8; font-family: 'Space Mono', monospace; }
+  .alert-msg { font-size: 12px; color: #64748b; line-height: 1.5; }
+  .alert-dismiss { background: none; border: none; color: #94a3b8; font-size: 16px; padding: 0 2px; }
+
+  .channel-btn {
+    padding: 8px 16px; border-radius: 8px; border: 1px solid #e2e8f0;
+    background: transparent; color: #64748b; font-family: 'DM Sans', sans-serif;
+    font-size: 13px; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+  }
+  .channel-btn.active { border-color: #6366f1; background: rgba(99,102,241,0.08); color: #4f46e5; }
+
+  .detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .detail-stat { background: #f8fafc; border-radius: 10px; padding: 14px; border: 1px solid #e2e8f0; }
+  .detail-stat-value { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; }
+  .detail-stat-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .chart-container { background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: #cbd5e1; font-family: 'Space Mono', monospace; font-size: 14px; }
+  .empty-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.3; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; padding: 14px 22px; border-radius: 10px;
+    background: #1e293b; color: #fff; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2); z-index: 1000;
+    animation: fadeIn 0.3s ease; display: none;
+  }
+  .toast.error { background: #dc2626; }
+  .toast.visible { display: block; }
+
+  /* LinkedIn manual entry form */
+  .li-form { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-top: 16px; }
+  .li-form .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .li-form label { font-size: 11px; color: #64748b; font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+  .li-form input { width: 100%; }
+
+  @media (max-width: 800px) {
+    .grid.with-sidebar { grid-template-columns: 1fr; }
+    .sidebar { border-left: none; border-top: 1px solid #e2e8f0; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .header { flex-wrap: wrap; gap: 12px; }
+    .li-form .form-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">TrendPulse</div>
+      <div class="logo-sub">DPO Keyword Monitor</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">Connecting...</span>
+    </div>
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
+      <span class="spinner"></span>
+      <span class="btn-text">↻ Refresh Now</span>
+    </button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('dashboard', this)">📊 Dashboard</button>
+  <button class="tab" onclick="switchTab('alerts', this)" id="alertsTab">🔔 Alerts</button>
+  <button class="tab" onclick="switchTab('linkedin', this)">💼 LinkedIn</button>
+  <button class="tab" onclick="switchTab('settings', this)">⚙ Settings</button>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <span class="filter-label">🌍 Region</span>
+  <div class="filter-pills" id="countryPills"></div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">📱 Platform</span>
+  <div class="filter-pills" id="platformPills"></div>
+</div>
+
+<!-- Dashboard Tab -->
+<div class="tab-content active" id="tab-dashboard">
+  <div class="grid" id="dashboardGrid">
+    <div class="main">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" style="color:#a5b4fc" id="statTracking">-</div>
+          <div class="stat-label">Tracking</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:#ff4d4f" id="statCritical">-</div>
+          <div class="stat-label">Critical</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:#22c55e" id="statInterval">-</div>
+          <div class="stat-label">Interval</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:#8b5cf6; font-size:14px;" id="statLastRefresh">-</div>
+          <div class="stat-label">Last Refresh</div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin-bottom:0;">Tracked Keywords</div>
+        <select class="select-input" style="padding:4px 10px;font-size:11px;border-radius:14px;" id="sortSelect" onchange="renderKeywords()">
+          <option value="value_desc">Value: High → Low</option>
+          <option value="value_asc">Value: Low → High</option>
+          <option value="name_asc">Name: A → Z</option>
+        </select>
+      </div>
+      <div id="keywordsList"></div>
+
+      <div class="card" style="cursor:default;margin-top:16px;">
+        <div class="section-title">Add New Keyword</div>
+        <div class="add-form">
+          <input class="input" id="newKeyword" placeholder="Enter keyword…" style="flex:2;min-width:140px;" onkeydown="if(event.key==='Enter')addKeyword()">
+          <select class="select-input" id="newCategory" style="flex:1;min-width:100px;">
+            <option>Industry</option><option>Product</option><option>Marketing</option><option>Tech</option><option>Custom</option>
+          </select>
+          <select class="select-input" id="newCountry" style="flex:1;min-width:80px;"></select>
+          <select class="select-input" id="newPlatform" style="flex:1;min-width:100px;"></select>
+          <input class="input" id="newThreshold" type="number" value="80" placeholder="Threshold" style="width:80px;flex:none;">
+          <button class="add-btn" onclick="addKeyword()">+ Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar" id="detailSidebar" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- Alerts Tab -->
+<div class="tab-content" id="tab-alerts">
+  <div class="main" style="max-height:calc(100vh - 180px)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div>
+        <h2 style="font-family:'Space Mono',monospace;font-size:20px;">Alert Feed</h2>
+        <p id="alertSummary" style="margin:4px 0 0;font-size:13px;color:#64748b;">Loading...</p>
+      </div>
+      <button class="channel-btn" onclick="clearAlerts()" id="clearAlertsBtn" style="display:none;">Clear All</button>
+    </div>
+    <div id="alertsList"></div>
+  </div>
+</div>
+
+<!-- LinkedIn Tab -->
+<div class="tab-content" id="tab-linkedin">
+  <div class="main" style="max-width:720px;">
+    <h2 style="font-family:'Space Mono',monospace;margin:0 0 8px;font-size:20px;">LinkedIn Performance Tracker</h2>
+    <p style="font-size:13px;color:#64748b;margin-bottom:24px;line-height:1.6;">
+      Log your DPO LinkedIn post performance here. Select a LinkedIn keyword, enter the post metrics,
+      and the dashboard will track engagement trends over time — helping you see which topics resonate
+      most with your audience.
+    </p>
+
+    <div class="li-form">
+      <div class="section-title">Log Post Performance</div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <select class="select-input" id="liKeyword" style="flex:1;min-width:200px;"></select>
+        <input class="input" id="liDate" type="date" style="width:160px;">
+      </div>
+      <div class="form-grid">
+        <div><label>Impressions</label><input class="input" id="liImpressions" type="number" value="0"></div>
+        <div><label>Clicks</label><input class="input" id="liClicks" type="number" value="0"></div>
+        <div><label>Reactions</label><input class="input" id="liReactions" type="number" value="0"></div>
+        <div><label>Comments</label><input class="input" id="liComments" type="number" value="0"></div>
+        <div><label>Shares</label><input class="input" id="liShares" type="number" value="0"></div>
+      </div>
+      <button class="add-btn" style="margin-top:16px;" onclick="submitLinkedIn()">📊 Log Performance</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Tab -->
+<div class="tab-content" id="tab-settings">
+  <div class="main" style="max-width:640px;">
+    <h2 style="font-family:'Space Mono',monospace;margin:0 0 24px;font-size:20px;">Settings</h2>
+
+    <div class="section-title">Check Interval</div>
+    <div style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap;" id="intervalBtns"></div>
+
+    <div class="section-title">Data Source</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:28px;">
+      <p style="font-size:13px;color:#64748b;line-height:1.7;">
+        Google Trends data is fetched via <span style="font-family:'Space Mono',monospace;color:#6366f1;">pytrends</span> (free, unofficial API).
+        Data is refreshed automatically based on the interval above, or manually via the "Refresh Now" button.
+      </p>
+      <p style="font-size:12px;color:#94a3b8;margin-top:8px;font-family:'Space Mono',monospace;">
+        To upgrade to SerpApi for more reliable data, set the SERPAPI_KEY environment variable.
+      </p>
+    </div>
+
+    <div class="section-title">About</div>
+    <p style="font-size:13px;color:#64748b;line-height:1.7;">
+      TrendPulse v1.0 — Built for DPO International's Marketing Division.<br>
+      Monitors keyword trends across Google Trends and LinkedIn for the ASEAN + Greater China region.
+    </p>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Config ────────────────────────────────────────────────────────────
+const API = '';  // Same origin
+const COUNTRIES = [
+  { code: '', name: 'All', flag: '🌍' },
+  { code: 'MY', name: 'Malaysia', flag: '🇲🇾' },
+  { code: 'SG', name: 'Singapore', flag: '🇸🇬' },
+  { code: 'ID', name: 'Indonesia', flag: '🇮🇩' },
+  { code: 'TH', name: 'Thailand', flag: '🇹🇭' },
+  { code: 'VN', name: 'Vietnam', flag: '🇻🇳' },
+  { code: 'PH', name: 'Philippines', flag: '🇵🇭' },
+  { code: 'CN', name: 'China', flag: '🇨🇳' },
+  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰' },
+  { code: 'LK', name: 'Sri Lanka', flag: '🇱🇰' },
+];
+const PLATFORMS = [
+  { code: '', name: 'All', icon: '📱', color: '#6366f1' },
+  { code: 'google', name: 'Google Trends', icon: '🔍', color: '#4285f4' },
+  { code: 'linkedin', name: 'LinkedIn', icon: '💼', color: '#0a66c2' },
+];
+
+let state = {
+  keywords: [],
+  trends: {},
+  alerts: [],
+  settings: {},
+  status: {},
+  selectedKeyword: null,
+  countryFilter: '',
+  platformFilter: '',
+};
+
+// ─── API Helpers ───────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+function toast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast visible' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// ─── Data Loading ──────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const [kwRes, trendRes, alertRes, settingsRes, statusRes] = await Promise.all([
+      api('/api/keywords'),
+      api('/api/trends?days=30'),
+      api('/api/alerts'),
+      api('/api/settings'),
+      api('/api/status'),
+    ]);
+    state.keywords = kwRes.keywords;
+    state.trends = trendRes.trends;
+    state.alerts = alertRes.alerts;
+    state.settings = settingsRes;
+    state.status = statusRes;
+    renderAll();
+    updateStatus(true);
+  } catch (e) {
+    console.error('Load failed:', e);
+    updateStatus(false);
+    toast('Failed to load data: ' + e.message, true);
+  }
+}
+
+function updateStatus(online) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  if (online) {
+    dot.className = 'status-dot';
+    text.className = 'status-text';
+    text.textContent = 'Connected';
+  } else {
+    dot.className = 'status-dot offline';
+    text.className = 'status-text offline';
+    text.textContent = 'Offline';
+  }
+}
+
+// ─── Render Everything ─────────────────────────────────────────────────
+function renderAll() {
+  renderStats();
+  renderFilters();
+  renderKeywords();
+  renderAlerts();
+  renderSettings();
+  renderLinkedInForm();
+}
+
+// ─── Stats ─────────────────────────────────────────────────────────────
+function renderStats() {
+  document.getElementById('statTracking').textContent = state.status.tracking || 0;
+  document.getElementById('statCritical').textContent = state.status.critical_alerts || 0;
+  document.getElementById('statInterval').textContent = state.status.check_interval || '6h';
+  const lr = state.status.last_refresh;
+  document.getElementById('statLastRefresh').textContent = lr ? new Date(lr).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never';
+}
+
+// ─── Filters ───────────────────────────────────────────────────────────
+function renderFilters() {
+  const cp = document.getElementById('countryPills');
+  cp.innerHTML = COUNTRIES.map(c =>
+    `<button class="pill${state.countryFilter === c.code ? ' active' : ''}" onclick="setFilter('country','${c.code}')">${c.flag} ${c.code || 'All'}</button>`
+  ).join('');
+
+  const pp = document.getElementById('platformPills');
+  pp.innerHTML = PLATFORMS.map(p =>
+    `<button class="pill${state.platformFilter === p.code ? ' active' : ''}" onclick="setFilter('platform','${p.code}')">${p.icon} ${p.code ? p.name : 'All'}</button>`
+  ).join('');
+}
+
+function setFilter(type, code) {
+  if (type === 'country') state.countryFilter = code;
+  else state.platformFilter = code;
+  state.selectedKeyword = null;
+  renderFilters();
+  renderKeywords();
+}
+
+// ─── Keywords List ─────────────────────────────────────────────────────
+function getFiltered() {
+  return state.keywords.filter(k => {
+    if (state.countryFilter && k.country !== state.countryFilter) return false;
+    if (state.platformFilter && k.platform !== state.platformFilter) return false;
+    return true;
+  });
+}
+
+function getLatestValue(kwId) {
+  const data = state.trends[kwId] || [];
+  return data.length ? data[data.length - 1].value : 0;
+}
+
+function getSparkData(kwId) {
+  const data = state.trends[kwId] || [];
+  return data.slice(-15).map(d => d.value);
+}
+
+function makeBadge(text, color) {
+  return `<span class="badge" style="background:${color}15;color:${color};border:1px solid ${color}30;">${text}</span>`;
+}
+
+function sparklineSVG(data, w = 120, h = 32) {
+  if (!data || data.length < 2) return '<span style="color:#cbd5e1;font-size:11px;">No data</span>';
+  const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
+  const color = data[data.length - 1] >= data[data.length - 2] ? '#22c55e' : '#ff4d4f';
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  const gid = 'g' + Math.random().toString(36).substr(2, 6);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="0,${h} ${pts} ${w},${h}" fill="url(#${gid})"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="${w}" cy="${parseFloat(pts.split(' ').pop().split(',')[1])}" r="2.5" fill="${color}"/>
+  </svg>`;
+}
+
+function renderKeywords() {
+  const container = document.getElementById('keywordsList');
+  let filtered = getFiltered();
+  const sortVal = document.getElementById('sortSelect').value;
+
+  filtered.sort((a, b) => {
+    const va = getLatestValue(a.id), vb = getLatestValue(b.id);
+    if (sortVal === 'value_desc') return vb - va;
+    if (sortVal === 'value_asc') return va - vb;
+    return a.term.localeCompare(b.term);
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div>No keywords match filters. Add one below.</div>';
+    return;
+  }
+
+  const country = c => COUNTRIES.find(x => x.code === c) || COUNTRIES[0];
+  const platform = p => PLATFORMS.find(x => x.code === p) || PLATFORMS[0];
+
+  container.innerHTML = filtered.map(kw => {
+    const val = getLatestValue(kw.id);
+    const spark = getSparkData(kw.id);
+    const isOver = val >= kw.threshold;
+    const isSelected = state.selectedKeyword === kw.id;
+    const c = country(kw.country);
+    const p = platform(kw.platform);
+    return `<div class="card${isSelected ? ' selected' : ''}${isOver ? ' alert-border' : ''}" onclick="selectKeyword(${kw.id})">
+      <div class="card-row">
+        <div class="card-left">
+          <div>
+            <div class="kw-name">${kw.term}</div>
+            <div class="kw-meta">
+              ${makeBadge(kw.category, '#6366f1')}
+              ${makeBadge(c.flag + ' ' + (kw.country || 'Global'), '#8b5cf6')}
+              ${makeBadge(p.icon + ' ' + p.name, p.color)}
+              <span class="kw-threshold">threshold: ${kw.threshold}</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-right">
+          ${sparklineSVG(spark)}
+          <div class="kw-value" style="color:${isOver ? '#ff4d4f' : '#1e293b'}">${val || '—'}</div>
+          <button class="remove-btn" onclick="event.stopPropagation();removeKeyword(${kw.id})">×</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderDetailSidebar();
+}
+
+// ─── Detail Sidebar ────────────────────────────────────────────────────
+function selectKeyword(id) {
+  state.selectedKeyword = state.selectedKeyword === id ? null : id;
+  renderKeywords();
+}
+
+function renderDetailSidebar() {
+  const sidebar = document.getElementById('detailSidebar');
+  const grid = document.getElementById('dashboardGrid');
+
+  if (!state.selectedKeyword) {
+    sidebar.style.display = 'none';
+    grid.classList.remove('with-sidebar');
+    return;
+  }
+
+  const kw = state.keywords.find(k => k.id === state.selectedKeyword);
+  if (!kw) { sidebar.style.display = 'none'; grid.classList.remove('with-sidebar'); return; }
+
+  grid.classList.add('with-sidebar');
+  sidebar.style.display = 'block';
+
+  const data = (state.trends[kw.id] || []).map(d => d.value);
+  const current = data[data.length - 1] || 0;
+  const maxVal = data.length ? Math.max(...data) : 0;
+  const avgVal = data.length ? Math.round(data.reduce((a, b) => a + b, 0) / data.length) : 0;
+  const daysAbove = data.filter(v => v >= kw.threshold).length;
+  const p = PLATFORMS.find(x => x.code === kw.platform) || PLATFORMS[0];
+  const c = COUNTRIES.find(x => x.code === kw.country) || COUNTRIES[0];
+  const statusBadge = current >= kw.threshold ? makeBadge('ABOVE THRESHOLD', '#ff4d4f') : makeBadge('Normal', '#22c55e');
+
+  sidebar.innerHTML = `
+    <div class="section-title">Trend Detail</div>
+    <h2 style="font-family:'Space Mono',monospace;font-size:20px;margin:0 0 6px;">${kw.term}</h2>
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+      ${makeBadge(kw.category, '#6366f1')}
+      ${makeBadge(c.flag + ' ' + c.name, '#8b5cf6')}
+      ${makeBadge(p.icon + ' ' + p.name, p.color)}
+      ${statusBadge}
+    </div>
+    <div class="chart-container">${trendChartSVG(data, kw.threshold)}</div>
+    <div class="detail-stats">
+      <div class="detail-stat"><div class="detail-stat-value" style="color:#a5b4fc">${current}</div><div class="detail-stat-label">Current</div></div>
+      <div class="detail-stat"><div class="detail-stat-value" style="color:#fbbf24">${maxVal}</div><div class="detail-stat-label">Peak</div></div>
+      <div class="detail-stat"><div class="detail-stat-value" style="color:#22c55e">${avgVal}</div><div class="detail-stat-label">Average</div></div>
+      <div class="detail-stat"><div class="detail-stat-value" style="color:#ff4d4f">${daysAbove}/${data.length}</div><div class="detail-stat-label">Above Threshold</div></div>
+    </div>
+    <div class="section-title">Data Source</div>
+    <p style="font-size:13px;color:#64748b;line-height:1.7;">
+      ${kw.platform === 'google' ? 'Fetched automatically from Google Trends via pytrends.' : 'Manually logged LinkedIn engagement data.'}
+      Region: <strong>${c.name}</strong>. Threshold: <strong>${kw.threshold}</strong>.
+    </p>`;
+}
+
+function trendChartSVG(data, threshold) {
+  if (!data || data.length < 2) return '<div style="text-align:center;padding:40px;color:#cbd5e1;font-size:13px;">Not enough data yet. Refresh to fetch trends.</div>';
+  const W = 480, H = 200;
+  const pad = { t: 20, r: 20, b: 30, l: 40 };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const max = Math.max(...data, threshold) * 1.15, range = max || 1;
+  const pts = data.map((v, i) => ({ x: pad.l + (i / (data.length - 1)) * cW, y: pad.t + cH - (v / range) * cH, v }));
+  const polyline = pts.map(p => `${p.x},${p.y}`).join(' ');
+  const area = `${pad.l},${pad.t + cH} ${polyline} ${pts[pts.length - 1].x},${pad.t + cH}`;
+  const thY = pad.t + cH - (threshold / range) * cH;
+
+  let yLines = '';
+  for (let i = 0; i <= 4; i++) {
+    const val = Math.round((range / 4) * i);
+    const y = pad.t + cH - (val / range) * cH;
+    yLines += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="#e2e8f0" stroke-width="1"/>`;
+    yLines += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="#94a3b8" font-family="Space Mono">${val}</text>`;
+  }
+
+  let dots = '';
+  pts.forEach((p, i) => {
+    if (i === pts.length - 1 || data[i] >= threshold) {
+      const isOver = data[i] >= threshold;
+      dots += `<circle cx="${p.x}" cy="${p.y}" r="${isOver ? 4 : 3}" fill="${isOver ? '#ff4d4f' : '#6366f1'}"/>`;
+    }
+  });
+
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;">
+    <defs><linearGradient id="cGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0.02"/>
+    </linearGradient></defs>
+    ${yLines}
+    <polygon points="${area}" fill="url(#cGrad)"/>
+    <polyline points="${polyline}" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="${pad.l}" y1="${thY}" x2="${W - pad.r}" y2="${thY}" stroke="#ff4d4f" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="${W - pad.r}" y="${thY - 5}" text-anchor="end" font-size="9" fill="#ff4d4f" font-family="Space Mono">THRESHOLD: ${threshold}</text>
+    ${dots}
+  </svg>`;
+}
+
+// ─── Alerts ────────────────────────────────────────────────────────────
+function renderAlerts() {
+  const container = document.getElementById('alertsList');
+  const summary = document.getElementById('alertSummary');
+  const clearBtn = document.getElementById('clearAlertsBtn');
+  const alerts = state.alerts;
+  const highCount = alerts.filter(a => a.severity === 'high').length;
+
+  document.getElementById('alertsTab').textContent = `🔔 Alerts${alerts.length ? ` (${alerts.length})` : ''}`;
+
+  if (!alerts.length) {
+    summary.textContent = 'No alerts. Alerts will appear when keywords cross their thresholds.';
+    clearBtn.style.display = 'none';
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔔</div>No alerts yet. Click "Refresh Now" to fetch live data.</div>';
+    return;
+  }
+
+  summary.textContent = `${alerts.length} alerts · ${highCount} critical`;
+  clearBtn.style.display = '';
+
+  const country = c => COUNTRIES.find(x => x.code === c) || COUNTRIES[0];
+  const platform = p => PLATFORMS.find(x => x.code === p) || PLATFORMS[0];
+
+  container.innerHTML = alerts.map(a => {
+    const c = country(a.country);
+    const p = platform(a.platform);
+    const time = new Date(a.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return `<div class="alert-item ${a.severity}">
+      <div class="alert-dot ${a.severity}"></div>
+      <div class="alert-body">
+        <div class="alert-header">
+          <span class="alert-keyword">${a.term} <span style="font-weight:400;color:#8b5cf6;font-size:11px;">${c.flag} ${a.country}</span> <span style="font-weight:400;color:${p.color};font-size:11px;">${p.icon} ${p.name}</span></span>
+          <span class="alert-time">${time}</span>
+        </div>
+        <p class="alert-msg">${a.message}</p>
+      </div>
+      <button class="alert-dismiss" onclick="dismissAlert(${a.id})">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function dismissAlert(id) {
+  try { await api(`/api/alerts/${id}`, { method: 'DELETE' }); await loadAll(); } catch (e) { toast(e.message, true); }
+}
+async function clearAlerts() {
+  try { await api('/api/alerts', { method: 'DELETE' }); await loadAll(); } catch (e) { toast(e.message, true); }
+}
+
+// ─── Settings ──────────────────────────────────────────────────────────
+function renderSettings() {
+  const interval = state.settings.check_interval || '6h';
+  document.getElementById('intervalBtns').innerHTML = ['15m', '1h', '6h', '12h', '24h'].map(iv =>
+    `<button class="channel-btn${interval === iv ? ' active' : ''}" onclick="setInterval_('${iv}')">${iv}</button>`
+  ).join('');
+}
+
+async function setInterval_(iv) {
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ check_interval: iv }) });
+    toast(`Check interval updated to ${iv}`);
+    await loadAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── LinkedIn Form ─────────────────────────────────────────────────────
+function renderLinkedInForm() {
+  const sel = document.getElementById('liKeyword');
+  const liKeywords = state.keywords.filter(k => k.platform === 'linkedin');
+  sel.innerHTML = liKeywords.length
+    ? liKeywords.map(k => `<option value="${k.id}">${k.term} (${k.country})</option>`).join('')
+    : '<option value="">No LinkedIn keywords — add one first</option>';
+  document.getElementById('liDate').value = new Date().toISOString().split('T')[0];
+}
+
+async function submitLinkedIn() {
+  const kwId = parseInt(document.getElementById('liKeyword').value);
+  if (!kwId) return toast('Select a LinkedIn keyword first', true);
+  try {
+    const body = {
+      keyword_id: kwId,
+      impressions: parseInt(document.getElementById('liImpressions').value) || 0,
+      clicks: parseInt(document.getElementById('liClicks').value) || 0,
+      reactions: parseInt(document.getElementById('liReactions').value) || 0,
+      comments: parseInt(document.getElementById('liComments').value) || 0,
+      shares: parseInt(document.getElementById('liShares').value) || 0,
+      date: document.getElementById('liDate').value,
+    };
+    const res = await api('/api/linkedin/data', { method: 'POST', body: JSON.stringify(body) });
+    toast(`Logged! Engagement score: ${res.engagement}`);
+    // Reset form
+    ['liImpressions','liClicks','liReactions','liComments','liShares'].forEach(id => document.getElementById(id).value = '0');
+    await loadAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── Actions ───────────────────────────────────────────────────────────
+async function addKeyword() {
+  const term = document.getElementById('newKeyword').value.trim();
+  if (!term) return;
+  try {
+    await api('/api/keywords', {
+      method: 'POST',
+      body: JSON.stringify({
+        term,
+        category: document.getElementById('newCategory').value,
+        country: document.getElementById('newCountry').value,
+        platform: document.getElementById('newPlatform').value,
+        threshold: parseInt(document.getElementById('newThreshold').value) || 80,
+      })
+    });
+    document.getElementById('newKeyword').value = '';
+    toast(`Keyword "${term}" added`);
+    await loadAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function removeKeyword(id) {
+  try {
+    await api(`/api/keywords/${id}`, { method: 'DELETE' });
+    if (state.selectedKeyword === id) state.selectedKeyword = null;
+    toast('Keyword removed');
+    await loadAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  try {
+    const res = await api('/api/trends/refresh', { method: 'POST' });
+    toast(res.message);
+    await loadAll();
+  } catch (e) {
+    toast('Refresh failed: ' + e.message, true);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────
+function initSelects() {
+  const cs = document.getElementById('newCountry');
+  cs.innerHTML = COUNTRIES.filter(c => c.code).map(c => `<option value="${c.code}"${c.code === 'MY' ? ' selected' : ''}>${c.flag} ${c.name}</option>`).join('');
+  const ps = document.getElementById('newPlatform');
+  ps.innerHTML = PLATFORMS.filter(p => p.code).map(p => `<option value="${p.code}">${p.icon} ${p.name}</option>`).join('');
+}
+
+initSelects();
+loadAll();
+// Auto-refresh status every 60 seconds
+setInterval(() => loadAll(), 60000);
+</script>
+</body>
+</html>
